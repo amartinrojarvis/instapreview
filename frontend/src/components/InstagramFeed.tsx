@@ -1,18 +1,18 @@
 import type { PublicClient, PublicPost } from "@/lib/api";
-import { InstagramPost } from "@/components/InstagramPost";
+import { InstaPreviewPost } from "@/components/InstaPreviewPost";
 import { ProfileHeader } from "@/components/ProfileHeader";
-import { InstagramHeader } from "@/components/InstagramHeader";
+import { InstaPreviewHeader } from "@/components/InstaPreviewHeader";
 
-interface InstagramFeedProps {
+interface InstaPreviewFeedProps {
   client: PublicClient;
   posts: PublicPost[];
 }
 
-export function InstagramFeed({ client, posts }: InstagramFeedProps) {
+export function InstaPreviewFeed({ client, posts }: InstaPreviewFeedProps) {
   return (
     <div className="min-h-screen bg-white">
-      {/* Instagram-style top navigation */}
-      <InstagramHeader clientName={client.name} />
+      {/* InstaPreview-style top navigation */}
+      <InstaPreviewHeader clientName={client.name} />
 
       {/* Profile header section */}
       <ProfileHeader client={client} postsCount={posts.length} />
@@ -34,7 +34,7 @@ export function InstagramFeed({ client, posts }: InstagramFeedProps) {
         ) : (
           <div className="divide-y divide-[#dbdbdb]">
             {posts.map((post) => (
-              <InstagramPost key={post.id} client={client} post={post} />
+              <InstaPreviewPost key={post.id} client={client} post={post} />
             ))}
           </div>
         )}

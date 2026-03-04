@@ -1,12 +1,12 @@
 import { fetchPublicFeed, downloadZipUrl } from "@/lib/api";
-import { InstagramFeed } from "@/components/InstagramFeed";
+import { InstaPreviewFeed } from "@/components/InstaPreviewFeed";
 
 export default async function PreviewPage({ params }: { params: { clientId: string } }) {
   const { client, posts } = await fetchPublicFeed(params.clientId);
 
   return (
     <main className="min-h-screen bg-white">
-      <InstagramFeed client={client} posts={posts} />
+      <InstaPreviewFeed client={client} posts={posts} />
 
       {/* Download button - floating */}
       <a

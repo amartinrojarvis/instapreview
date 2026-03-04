@@ -1,4 +1,4 @@
-export function InstagramFeedSkeleton() {
+export function InstaPreviewFeedSkeleton() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header skeleton */}

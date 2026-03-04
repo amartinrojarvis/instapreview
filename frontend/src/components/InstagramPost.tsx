@@ -28,12 +28,12 @@ function formatLikes(count: number): string {
   return `${(count / 1000000).toFixed(1)} M`;
 }
 
-interface InstagramPostProps {
+interface InstaPreviewPostProps {
   client: PublicClient;
   post: PublicPost;
 }
 
-export function InstagramPost({ client, post }: InstagramPostProps) {
+export function InstaPreviewPost({ client, post }: InstaPreviewPostProps) {
   // Ensure files have API_URL prefix
   const processedFiles = post.files.map(file => 
     file.startsWith("http") ? file : `${API_URL}${file}`

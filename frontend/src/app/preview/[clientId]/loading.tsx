@@ -1,5 +1,5 @@
-import { InstagramFeedSkeleton } from "@/components/InstagramFeedSkeleton";
+import { InstaPreviewFeedSkeleton } from "@/components/InstaPreviewFeedSkeleton";
 
 export default function Loading() {
-  return <InstagramFeedSkeleton />;
+  return <InstaPreviewFeedSkeleton />;
 }

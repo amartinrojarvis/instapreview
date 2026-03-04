@@ -1,11 +1,11 @@
 import { Heart, MessageCircle, PlusSquare, Search } from "lucide-react";
 
-interface InstagramHeaderProps {
+interface InstaPreviewHeaderProps {
   clientName: string;
   clientAvatar?: string;
 }
 
-export function InstagramHeader({ clientName, clientAvatar }: InstagramHeaderProps) {
+export function InstaPreviewHeader({ clientName, clientAvatar }: InstaPreviewHeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-[#dbdbdb] bg-white">
       {/* Main header */}
@@ -13,7 +13,7 @@ export function InstagramHeader({ clientName, clientAvatar }: InstagramHeaderPro
         {/* Logo */}
         <div className="flex items-center">
           <svg
-            aria-label="Instagram"
+            aria-label="InstaPreview"
             className="h-8 w-auto"
             fill="none"
             viewBox="0 0 100 35"
@@ -27,7 +27,7 @@ export function InstagramHeader({ clientName, clientAvatar }: InstagramHeaderPro
               fontWeight="600"
               fill="#262626"
             >
-              Instagram
+              InstaPreview
             </text>
           </svg>
         </div>

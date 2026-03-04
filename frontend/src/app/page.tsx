@@ -10,7 +10,7 @@ export default function Home() {
           </div>
           <h1 className="text-4xl font-bold text-white tracking-tight">InstaPreview</h1>
           <p className="mt-3 text-lg text-gray-400">
-            Previews tipo Instagram para tus clientes
+            Previews tipo InstaPreview para tus clientes
           </p>
         </div>
 

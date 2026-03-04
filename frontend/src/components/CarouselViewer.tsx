@@ -54,7 +54,7 @@ export function CarouselViewer({ files, alt }: CarouselViewerProps) {
             <ChevronRight className="h-5 w-5 text-gray-800" />
           </button>
 
-          {/* Dots indicator - Instagram style */}
+          {/* Dots indicator - InstaPreview style */}
           <div className="absolute bottom-3 left-0 right-0 flex items-center justify-center gap-1.5">
             {dots.map((_, i) => (
               <button
