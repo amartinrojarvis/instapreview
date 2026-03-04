@@ -10,8 +10,6 @@ export default async function PreviewPage({ params }: { params: { clientId: stri
         <InstaPreviewFeed client={client} posts={posts} />
       </div>
 
-      </div>
-
       {/* Download button - floating */}
       <a
         href={downloadZipUrl(client.slug)}
