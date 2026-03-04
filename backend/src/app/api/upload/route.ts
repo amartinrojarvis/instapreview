@@ -96,15 +96,13 @@ export async function POST(req: NextRequest) {
 
       // Upload to Supabase Storage
       console.log('Uploading to path:', filePath, 'MIME:', mime);
-      const { error: uploadError, data: uploadData } = await supabase
+      const { error: uploadError } = await supabase
         .storage
         .from('posts')
         .upload(filePath, buffer, {
           contentType: mime,
           upsert: true
         })
-
-      console.log('Upload result:', { error: uploadError, data: uploadData });
 
       if (uploadError) {
         console.error('Supabase upload error:', uploadError);
@@ -134,35 +132,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-} } = await supabase
-      .storage
-      .from('posts')
-      .upload(filePath, buffer, {
-        contentType: mime,
-        upsert: true
-      })
-
-    console.log('Upload result:', { error: uploadError, data: uploadData });
-
-    if (uploadError) {
-      console.error('Supabase upload error:', uploadError);
-      return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}`, details: uploadError },
-        { status: 500 }
-      );
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase
-      .storage
-      .from('posts')
-      .getPublicUrl(filePath)
-
-    saved.push({
-      filePath,
-      fileUrl: publicUrl,
-    });
-  }
-
-  return NextResponse.json({ files: saved });
 }
