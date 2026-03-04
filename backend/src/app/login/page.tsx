@@ -34,29 +34,45 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50">
-      <div className="mx-auto max-w-md px-6 py-20">
-        <h1 className="text-2xl font-bold">InstaPreview Admin</h1>
-        <p className="mt-2 text-sm text-zinc-600">Acceso protegido por contraseña.</p>
+    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-500 mb-4 shadow-lg shadow-purple-500/25">
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-white">InstaPreview</h1>
+          <p className="mt-2 text-gray-400">Panel de Administración</p>
+        </div>
 
-        <form onSubmit={onSubmit} className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
-          <label className="text-sm font-medium">Password</label>
+        <form 
+          onSubmit={onSubmit} 
+          className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-8 shadow-xl"
+        >
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Contraseña
+          </label>
           <input
             type="password"
-            className="mt-2 w-full rounded-lg border px-3 py-2"
+            className="w-full rounded-xl bg-gray-900 border border-gray-700 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
           />
 
-          {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+          {error && (
+            <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
-            className="mt-4 w-full rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 text-sm font-semibold text-white hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-500/25"
             disabled={loading || !password}
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "Entrando..." : "Entrar al Panel"}
           </button>
         </form>
       </div>

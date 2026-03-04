@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { v4 as uuidv4 } from "uuid";
+import { supabase, handleSupabaseError } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -9,14 +8,25 @@ export async function GET(req: NextRequest) {
   const auth = requireAuth(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
 
-  const db = getDb();
-  const clients = db
-    .prepare(
-      `SELECT c.*, (SELECT COUNT(1) FROM posts p WHERE p.client_id = c.id) as posts_count
-       FROM clients c ORDER BY c.created_at DESC`
-    )
-    .all();
-  return NextResponse.json({ clients });
+  const { data: clients, error } = await supabase
+    .from('clients')
+    .select(`
+      *,
+      posts:posts(count)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return NextResponse.json({ error: handleSupabaseError(error) }, { status: 500 })
+  }
+
+  // Transform posts count from array to number
+  const clientsWithCount = clients?.map((c: any) => ({
+    ...c,
+    posts_count: c.posts?.[0]?.count || 0
+  })) || []
+
+  return NextResponse.json({ clients: clientsWithCount })
 }
 
 export async function POST(req: NextRequest) {
@@ -32,21 +42,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing name/slug" }, { status: 400 });
   }
 
-  const db = getDb();
-  const id = uuidv4();
+  const { data: client, error } = await supabase
+    .from('clients')
+    .insert({
+      name,
+      slug,
+      description: description || null
+    })
+    .select()
+    .single()
 
-  try {
-    db.prepare(
-      `INSERT INTO clients (id, name, slug, description, created_at, updated_at)
-       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(id, name, slug, description || null);
-  } catch (e: any) {
-    if (String(e?.message || "").includes("UNIQUE")) {
+  if (error) {
+    if (error.code === '23505') {
       return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
     }
-    throw e;
+    return NextResponse.json({ error: handleSupabaseError(error) }, { status: 500 });
   }
 
-  const client = db.prepare(`SELECT * FROM clients WHERE id = ?`).get(id);
   return NextResponse.json({ client }, { status: 201 });
 }

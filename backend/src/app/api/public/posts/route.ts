@@ -1,46 +1,87 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import fs from "node:fs";
-import path from "node:path";
-import { env } from "@/lib/env";
+import { supabase, handleSupabaseError } from "@/lib/supabase";
+import { withCors, corsOptionsResponse } from "@/lib/cors";
 
 export const runtime = "nodejs";
+
+export async function OPTIONS() {
+  return corsOptionsResponse();
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const clientSlug = searchParams.get("clientSlug");
-  if (!clientSlug) return NextResponse.json({ error: "Missing clientSlug" }, { status: 400 });
+  if (!clientSlug) return withCors(NextResponse.json({ error: "Missing clientSlug" }, { status: 400 }));
 
-  const db = getDb();
-  const client = db.prepare(`SELECT * FROM clients WHERE slug = ?`).get(clientSlug) as any;
-  if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Get client by slug
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('slug', clientSlug)
+    .single()
 
-  const posts = (db
-    .prepare(`SELECT * FROM posts WHERE client_id = ? ORDER BY position ASC`)
-    .all(client.id) as any[]).map((p) => {
-    const base = `/api/public/media/${encodeURI(p.storage_path)}/`;
-    const dir = path.join(env.UPLOAD_DIR, p.storage_path);
+  if (clientError || !client) {
+    return withCors(NextResponse.json({ error: "Not found" }, { status: 404 }));
+  }
 
-    let files: string[] = [];
-    if (fs.existsSync(dir)) {
-      const names = fs
-        .readdirSync(dir)
-        .filter((n) => !n.startsWith("."))
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // Get posts with their storage files
+  const { data: posts, error: postsError } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('client_id', client.id)
+    .order('position', { ascending: true })
 
-      if (p.type === "video") {
-        files = names
-          .filter((n) => n.toLowerCase().startsWith("video."))
-          .map((n) => `${base}${encodeURI(n)}`);
-      } else {
-        files = names
-          .filter((n) => /\.(jpg|jpeg|png|webp)$/i.test(n))
-          .map((n) => `${base}${encodeURI(n)}`);
+  if (postsError) {
+    return withCors(NextResponse.json({ error: handleSupabaseError(postsError) }, { status: 500 }));
+  }
+
+  // Get public URLs for all post files from Supabase Storage
+  const postsWithFiles = await Promise.all(
+    (posts || []).map(async (post: any) => {
+      const { data: files } = await supabase
+        .storage
+        .from('posts')
+        .list(post.storage_path)
+
+      let fileUrls: string[] = []
+      
+      if (files && files.length > 0) {
+        if (post.type === 'video') {
+          // For video, find video files
+          const videoFile = files.find((f: any) => 
+            f.name.toLowerCase().startsWith('video.')
+          )
+          if (videoFile) {
+            const { data: { publicUrl } } = supabase
+              .storage
+              .from('posts')
+              .getPublicUrl(`${post.storage_path}/${videoFile.name}`)
+            fileUrls = [publicUrl]
+          }
+        } else {
+          // For images, get all image files sorted
+          const imageFiles = files
+            .filter((f: any) => /\.(jpg|jpeg|png|webp)$/i.test(f.name))
+            .sort((a: any, b: any) => {
+              // Sort numerically (1.jpg, 2.jpg, etc.)
+              const numA = parseInt(a.name.match(/^\d+/)?.[0] || '0')
+              const numB = parseInt(b.name.match(/^\d+/)?.[0] || '0')
+              return numA - numB
+            })
+          
+          fileUrls = imageFiles.map((f: any) => {
+            const { data: { publicUrl } } = supabase
+              .storage
+              .from('posts')
+              .getPublicUrl(`${post.storage_path}/${f.name}`)
+            return publicUrl
+          })
+        }
       }
-    }
 
-    return { ...p, files };
-  });
+      return { ...post, files: fileUrls }
+    })
+  )
 
-  return NextResponse.json({ client, posts });
+  return withCors(NextResponse.json({ client, posts: postsWithFiles }));
 }

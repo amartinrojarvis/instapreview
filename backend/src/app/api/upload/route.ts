@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import { requireAuth } from "@/lib/auth";
-import { ensureUploadRoot, clientPostDir } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -20,7 +18,6 @@ export async function POST(req: NextRequest) {
   const auth = requireAuth(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
 
-  ensureUploadRoot();
   const form = await req.formData();
   const clientSlug = String(form.get("clientSlug") || "").trim();
   const postId = String(form.get("postId") || "").trim();
@@ -30,8 +27,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing clientSlug/postId" }, { status: 400 });
   }
 
-  const dir = clientPostDir(clientSlug, postId);
-  fs.mkdirSync(dir, { recursive: true });
+  // Get post from database to verify it exists and get storage_path
+  const { data: post, error: postError } = await supabase
+    .from('posts')
+    .select('storage_path')
+    .eq('id', postId)
+    .single()
+
+  if (postError || !post) {
+    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+  }
 
   const files = form.getAll("files").filter(Boolean) as unknown as File[];
   if (!files.length) {
@@ -69,18 +74,38 @@ export async function POST(req: NextRequest) {
     if (type === "video") {
       filename = `video${extFromMime(mime) || ".mp4"}`;
     } else {
-      const ext = extFromMime(mime) || path.extname(file.name) || ".jpg";
+      const ext = extFromMime(mime) || ".jpg";
       filename = `${i + 1}${ext}`;
     }
 
-    const abs = path.join(dir, filename);
-    const buf = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(abs, buf);
+    const filePath = `${post.storage_path}/${filename}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
 
-    const rel = path.posix.join(clientSlug, postId, filename);
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase
+      .storage
+      .from('posts')
+      .upload(filePath, buffer, {
+        contentType: mime,
+        upsert: true // Overwrite if exists
+      })
+
+    if (uploadError) {
+      return NextResponse.json(
+        { error: `Upload failed: ${uploadError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('posts')
+      .getPublicUrl(filePath)
+
     saved.push({
-      filePath: rel,
-      fileUrl: `/api/public/media/${encodeURI(rel)}`,
+      filePath,
+      fileUrl: publicUrl,
     });
   }
 

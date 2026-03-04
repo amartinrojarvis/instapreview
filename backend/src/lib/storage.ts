@@ -1,25 +1,59 @@
-import fs from "node:fs";
-import path from "node:path";
-import { env } from "@/lib/env";
+import { supabase } from "./supabase";
 
+export async function removeClientStorage(clientSlug: string) {
+  try {
+    // List all files in the client folder
+    const { data: files } = await supabase
+      .storage
+      .from('posts')
+      .list(clientSlug)
+
+    if (files && files.length > 0) {
+      // Delete all files in the client folder
+      const filePaths = files.map(f => `${clientSlug}/${f.name}`)
+      await supabase.storage.from('posts').remove(filePaths)
+    }
+  } catch (error) {
+    console.error('Error removing client storage:', error)
+  }
+}
+
+export async function removePostStorage(storagePath: string) {
+  try {
+    // List all files in the post folder
+    const { data: files } = await supabase
+      .storage
+      .from('posts')
+      .list(storagePath)
+
+    if (files && files.length > 0) {
+      // Delete all files in the post folder
+      const filePaths = files.map(f => `${storagePath}/${f.name}`)
+      await supabase.storage.from('posts').remove(filePaths)
+    }
+  } catch (error) {
+    console.error('Error removing post storage:', error)
+  }
+}
+
+// Legacy functions - kept for compatibility but no-op
 export function ensureUploadRoot() {
-  fs.mkdirSync(env.UPLOAD_DIR, { recursive: true });
+  // No-op: Supabase Storage handles this
 }
 
-export function clientPostDir(clientSlug: string, postId: string) {
-  return path.join(env.UPLOAD_DIR, clientSlug, postId);
+export function clientPostDir(clientSlug: string, postId: string): string {
+  return `${clientSlug}/${postId}`;
 }
 
-export function safeJoin(root: string, rel: string) {
-  const resolved = path.resolve(root, rel);
-  const resolvedRoot = path.resolve(root);
-  if (!resolved.startsWith(resolvedRoot + path.sep) && resolved !== resolvedRoot) {
+export function safeJoin(root: string, rel: string): string {
+  // Simple path validation - prevents directory traversal
+  if (rel.includes('..')) {
     throw new Error("Invalid path");
   }
-  return resolved;
+  return rel;
 }
 
-export function removeDirRecursive(dirPath: string) {
-  if (!fs.existsSync(dirPath)) return;
-  fs.rmSync(dirPath, { recursive: true, force: true });
+export function removeDirRecursive(_dirPath: string) {
+  // No-op: Use removePostStorage or removeClientStorage instead
+  void _dirPath; // Mark as intentionally unused
 }

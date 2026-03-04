@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { env } from "@/lib/env";
-import { removeDirRecursive } from "@/lib/storage";
-import path from "node:path";
+import { supabase, handleSupabaseError } from "@/lib/supabase";
+import { removePostStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = requireAuth(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
-  const db = getDb();
-  const post = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(params.id);
-  if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const { data: post, error } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('id', params.id)
+    .single()
+
+  if (error || !post) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   return NextResponse.json({ post });
 }
 
@@ -26,44 +32,79 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const likesCount = body?.likes_count != null ? Number(body.likes_count) : null;
   const position = body?.position != null ? Number(body.position) : null;
 
-  const db = getDb();
-  const existing = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(params.id) as any;
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Get existing post
+  const { data: existing, error: fetchError } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('id', params.id)
+    .single()
+
+  if (fetchError || !existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const newPosition = position ?? existing.position;
   if (!Number.isInteger(newPosition) || newPosition < 1 || newPosition > 4) {
     return NextResponse.json({ error: "Invalid position" }, { status: 400 });
   }
 
-  try {
-    db.prepare(
-      `UPDATE posts SET caption=?, hashtags=?, likes_count=COALESCE(?, likes_count), position=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`
-    ).run(
-      caption === null ? existing.caption : caption || null,
-      hashtags === null ? existing.hashtags : hashtags || null,
-      likesCount,
-      newPosition,
-      params.id
-    );
-  } catch (e: any) {
-    if (String(e?.message || "").includes("UNIQUE")) {
-      return NextResponse.json({ error: "Position already used" }, { status: 409 });
-    }
-    throw e;
+  const updates: any = {
+    position: newPosition,
   }
 
-  const post = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(params.id);
+  if (caption !== null) {
+    updates.caption = caption || null
+  }
+  if (hashtags !== null) {
+    updates.hashtags = hashtags || null
+  }
+  if (likesCount !== null) {
+    updates.likes_count = likesCount
+  }
+
+  const { data: post, error } = await supabase
+    .from('posts')
+    .update(updates)
+    .eq('id', params.id)
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: "Position already used" }, { status: 409 });
+    }
+    return NextResponse.json({ error: handleSupabaseError(error) }, { status: 500 });
+  }
+
   return NextResponse.json({ post });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = requireAuth(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
-  const db = getDb();
-  const post = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(params.id) as any;
-  if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  removeDirRecursive(path.join(env.UPLOAD_DIR, post.storage_path));
-  db.prepare(`DELETE FROM posts WHERE id = ?`).run(params.id);
+  // Get post info before deleting (for storage cleanup)
+  const { data: post } = await supabase
+    .from('posts')
+    .select('storage_path')
+    .eq('id', params.id)
+    .single()
+
+  if (!post) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const { error } = await supabase
+    .from('posts')
+    .delete()
+    .eq('id', params.id)
+
+  if (error) {
+    return NextResponse.json({ error: handleSupabaseError(error) }, { status: 500 });
+  }
+
+  // Clean up storage
+  await removePostStorage(post.storage_path);
+
   return NextResponse.json({ ok: true });
 }

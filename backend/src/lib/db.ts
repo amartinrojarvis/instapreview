@@ -1,58 +1,5 @@
-import Database from "better-sqlite3";
-import fs from "node:fs";
-import path from "node:path";
-import { env } from "@/lib/env";
-
-let db: Database.Database | null = null;
-
-function ensureDirs() {
-  const dbPath = env.DATABASE_URL;
-  const dir = path.dirname(dbPath);
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function migrate(database: Database.Database) {
-  database.pragma("foreign_keys = ON");
-
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS clients (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS posts (
-      id TEXT PRIMARY KEY,
-      client_id TEXT NOT NULL,
-      type TEXT CHECK(type IN ('single','carousel','video')) NOT NULL,
-      position INTEGER CHECK(position BETWEEN 1 AND 4),
-      caption TEXT,
-      hashtags TEXT,
-      likes_count INTEGER DEFAULT 0,
-      file_count INTEGER DEFAULT 1,
-      storage_path TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
-      UNIQUE(client_id, position)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_posts_client ON posts(client_id);
-    CREATE INDEX IF NOT EXISTS idx_posts_position ON posts(client_id, position);
-    CREATE INDEX IF NOT EXISTS idx_clients_slug ON clients(slug);
-  `);
-}
-
-export function getDb() {
-  if (db) return db;
-  ensureDirs();
-  db = new Database(env.DATABASE_URL);
-  migrate(db);
-  return db;
-}
+// Legacy database types - now using Supabase
+// See src/lib/supabase.ts for the new database client
 
 export type Client = {
   id: string;
@@ -76,3 +23,8 @@ export type Post = {
   created_at: string;
   updated_at: string;
 };
+
+// Deprecated: Use supabase from @/lib/supabase instead
+export function getDb() {
+  throw new Error('SQLite database is deprecated. Use Supabase client from @/lib/supabase instead');
+}

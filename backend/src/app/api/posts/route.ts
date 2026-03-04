@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { getDb } from "@/lib/db";
-import { v4 as uuidv4 } from "uuid";
+import { supabase, handleSupabaseError } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -13,11 +12,17 @@ export async function GET(req: NextRequest) {
   const clientId = searchParams.get("clientId");
   if (!clientId) return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
 
-  const db = getDb();
-  const posts = db
-    .prepare(`SELECT * FROM posts WHERE client_id = ? ORDER BY position ASC`)
-    .all(clientId);
-  return NextResponse.json({ posts });
+  const { data: posts, error } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('position', { ascending: true })
+
+  if (error) {
+    return NextResponse.json({ error: handleSupabaseError(error) }, { status: 500 });
+  }
+
+  return NextResponse.json({ posts: posts || [] });
 }
 
 export async function POST(req: NextRequest) {
@@ -43,41 +48,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid file_count" }, { status: 400 });
   }
 
-  const db = getDb();
-  const client = db.prepare(`SELECT * FROM clients WHERE id = ?`).get(clientId) as any;
-  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  // Verify client exists
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('slug')
+    .eq('id', clientId)
+    .single()
 
-  // enforce max 4 posts
-  const count = db.prepare(`SELECT COUNT(1) as c FROM posts WHERE client_id=?`).get(clientId) as any;
-  if ((count?.c || 0) >= 4) {
+  if (clientError || !client) {
+    return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  }
+
+  // Check max 4 posts per client
+  const { count, error: countError } = await supabase
+    .from('posts')
+    .select('*', { count: 'exact', head: true })
+    .eq('client_id', clientId)
+
+  if (countError) {
+    return NextResponse.json({ error: handleSupabaseError(countError) }, { status: 500 });
+  }
+
+  if ((count || 0) >= 4) {
     return NextResponse.json({ error: "Max 4 posts per client" }, { status: 409 });
   }
 
-  const id = uuidv4();
-  const storagePath = `${client.slug}/${id}`; // relative to UPLOAD_DIR
+  // Create storage path
+  const storagePath = `${client.slug}/${crypto.randomUUID()}`;
 
-  try {
-    db.prepare(
-      `INSERT INTO posts (id, client_id, type, position, caption, hashtags, likes_count, file_count, storage_path, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(
-      id,
-      clientId,
+  const { data: post, error } = await supabase
+    .from('posts')
+    .insert({
+      client_id: clientId,
       type,
       position,
-      caption || null,
-      hashtags || null,
-      likesCount || 0,
-      fileCount,
-      storagePath
-    );
-  } catch (e: any) {
-    if (String(e?.message || "").includes("UNIQUE")) {
+      caption: caption || null,
+      hashtags: hashtags || null,
+      likes_count: likesCount || 0,
+      file_count: fileCount,
+      storage_path: storagePath
+    })
+    .select()
+    .single()
+
+  if (error) {
+    if (error.code === '23505') {
       return NextResponse.json({ error: "Position already used" }, { status: 409 });
     }
-    throw e;
+    return NextResponse.json({ error: handleSupabaseError(error) }, { status: 500 });
   }
 
-  const post = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(id);
   return NextResponse.json({ post }, { status: 201 });
 }
