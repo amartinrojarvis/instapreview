@@ -122,14 +122,45 @@ export function AdminDashboard() {
 
     const input = form.querySelector<HTMLInputElement>('input[name="files"]');
     const list = input?.files;
+    
+    console.log('Upload - Input element:', input);
+    console.log('Upload - Files list:', list);
+    
     if (list && list.length) {
-      for (const f of Array.from(list)) uploadFd.append("files", f);
+      console.log('Upload - Number of files:', list.length);
+      for (let i = 0; i < list.length; i++) {
+        const f = list[i];
+        console.log(`Upload - Appending file ${i}:`, f.name, f.type, f.size);
+        uploadFd.append("files", f);
+      }
+      
+      console.log('Upload - FormData entries:', Array.from(uploadFd.entries()).map(([k, v]) => {
+        if (v instanceof File) return [k, `File(${v.name}, ${v.size} bytes)`];
+        return [k, v];
+      }));
+      
+      console.log('Upload - Sending request to /api/upload...');
       const upRes = await fetch("/api/upload", { method: "POST", body: uploadFd });
-      const upJ = await upRes.json().catch(() => ({}));
+      console.log('Upload - Response status:', upRes.status, upRes.statusText);
+      
+      let upJ;
+      const responseText = await upRes.text();
+      console.log('Upload - Raw response:', responseText);
+      
+      try {
+        upJ = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Upload - Failed to parse JSON:', e);
+        throw new Error(`Error ${upRes.status}: ${responseText || 'Respuesta vacía del servidor'}`);
+      }
+      
       if (!upRes.ok) {
         const errorMsg = upJ.error || upJ.message || JSON.stringify(upJ) || `Error ${upRes.status}`;
+        console.error('Upload - Server error:', errorMsg);
         throw new Error(errorMsg);
       }
+      
+      console.log('Upload - Success:', upJ);
     } else {
       throw new Error("Selecciona archivos para el post");
     }
