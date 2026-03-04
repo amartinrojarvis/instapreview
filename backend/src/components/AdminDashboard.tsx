@@ -2,6 +2,65 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+// Función para comprimir imágenes
+async function compressImage(file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      
+      // Calcular nuevas dimensiones manteniendo aspect ratio
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      
+      // Crear canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('No se pudo crear contexto de canvas'));
+        return;
+      }
+      
+      // Dibujar imagen comprimida
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convertir a blob
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          } else {
+            reject(new Error('No se pudo comprimir la imagen'));
+          }
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Error cargando imagen'));
+    };
+    
+    img.src = url;
+  });
+}
+
 // Tipo para el cliente y posts
 type Client = {
   id: string;
@@ -128,10 +187,24 @@ export function AdminDashboard() {
     
     if (list && list.length) {
       console.log('Upload - Number of files:', list.length);
+      
+      // Comprimir imágenes antes de subir
       for (let i = 0; i < list.length; i++) {
         const f = list[i];
-        console.log(`Upload - Appending file ${i}:`, f.name, f.type, f.size);
-        uploadFd.append("files", f);
+        console.log(`Upload - Processing file ${i}:`, f.name, f.type, f.size);
+        
+        // Si es imagen, comprimir
+        if (f.type.startsWith('image/')) {
+          const compressed = await compressImage(f, 1200, 0.8);
+          console.log(`Upload - Compressed ${f.name}: ${f.size} -> ${compressed.size}`);
+          uploadFd.append("files", compressed);
+        } else {
+          uploadFd.append("files", f);
+        }
+      }
+    } else {
+      throw new Error("Selecciona archivos para el post");
+    }
       }
       
       console.log('Upload - FormData entries:', Array.from(uploadFd.entries()).map(([k, v]) => {
