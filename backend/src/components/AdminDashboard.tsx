@@ -2,65 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-// Función para comprimir imágenes
-async function compressImage(file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      
-      // Calcular nuevas dimensiones manteniendo aspect ratio
-      let width = img.width;
-      let height = img.height;
-      
-      if (width > maxWidth) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
-      }
-      
-      // Crear canvas
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('No se pudo crear contexto de canvas'));
-        return;
-      }
-      
-      // Dibujar imagen comprimida
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      // Convertir a blob
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const compressedFile = new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
-          } else {
-            reject(new Error('No se pudo comprimir la imagen'));
-          }
-        },
-        'image/jpeg',
-        quality
-      );
-    };
-    
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Error cargando imagen'));
-    };
-    
-    img.src = url;
-  });
-}
-
 // Tipo para el cliente y posts
 type Client = {
   id: string;
@@ -173,66 +114,54 @@ export function AdminDashboard() {
     const j = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(j.error || "Error creando post");
 
-    // upload files
-    const uploadFd = new FormData();
-    uploadFd.set("clientSlug", selectedClient.slug);
-    uploadFd.set("postId", j.post.id);
-    uploadFd.set("type", type);
-
+    // Obtener archivos seleccionados
     const input = form.querySelector<HTMLInputElement>('input[name="files"]');
     const list = input?.files;
-    
-    console.log('Upload - Input element:', input);
-    console.log('Upload - Files list:', list);
     
     if (!list || !list.length) {
       throw new Error("Selecciona archivos para el post");
     }
     
-    console.log('Upload - Number of files:', list.length);
+    console.log('Uploading', list.length, 'files individually...');
     
-    // Comprimir imágenes antes de subir
+    // Subir archivos uno a uno (para evitar límite de tamaño)
+    const saved: { filePath: string; fileUrl: string }[] = [];
+    
     for (let i = 0; i < list.length; i++) {
       const f = list[i];
-      console.log(`Upload - Processing file ${i}:`, f.name, f.type, f.size);
+      console.log(`Uploading file ${i + 1}/${list.length}:`, f.name, f.type, (f.size / 1024 / 1024).toFixed(2) + 'MB');
       
-      // Si es imagen, comprimir
-      if (f.type.startsWith('image/')) {
-        const compressed = await compressImage(f, 1200, 0.8);
-        console.log(`Upload - Compressed ${f.name}: ${f.size} -> ${compressed.size}`);
-        uploadFd.append("files", compressed);
-      } else {
-        uploadFd.append("files", f);
+      const uploadFd = new FormData();
+      uploadFd.set("clientSlug", selectedClient.slug);
+      uploadFd.set("postId", j.post.id);
+      uploadFd.set("type", type);
+      uploadFd.set("fileIndex", String(i));
+      uploadFd.append("files", f); // Solo un archivo por petición
+      
+      const upRes = await fetch("/api/upload", { method: "POST", body: uploadFd });
+      const responseText = await upRes.text();
+      
+      let upJ;
+      try {
+        upJ = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Failed to parse response:', responseText);
+        throw new Error(`Error subiendo archivo ${i + 1}: Respuesta inválida del servidor`);
+      }
+      
+      if (!upRes.ok) {
+        const errorMsg = upJ.error || upJ.message || `Error ${upRes.status}`;
+        console.error(`Upload error for file ${i}:`, errorMsg);
+        throw new Error(`Error subiendo archivo ${i + 1}: ${errorMsg}`);
+      }
+      
+      if (upJ.files && upJ.files[0]) {
+        saved.push(upJ.files[0]);
+        console.log(`File ${i + 1} uploaded:`, upJ.files[0].fileUrl);
       }
     }
     
-    console.log('Upload - FormData entries:', Array.from(uploadFd.entries()).map(([k, v]) => {
-      if (v instanceof File) return [k, `File(${v.name}, ${v.size} bytes)`];
-      return [k, v];
-    }));
-    
-    console.log('Upload - Sending request to /api/upload...');
-    const upRes = await fetch("/api/upload", { method: "POST", body: uploadFd });
-    console.log('Upload - Response status:', upRes.status, upRes.statusText);
-    
-    let upJ;
-    const responseText = await upRes.text();
-    console.log('Upload - Raw response:', responseText);
-    
-    try {
-      upJ = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Upload - Failed to parse JSON:', e);
-      throw new Error(`Error ${upRes.status}: ${responseText || 'Respuesta vacía del servidor'}`);
-    }
-    
-    if (!upRes.ok) {
-      const errorMsg = upJ.error || upJ.message || JSON.stringify(upJ) || `Error ${upRes.status}`;
-      console.error('Upload - Server error:', errorMsg);
-      throw new Error(errorMsg);
-    }
-    
-    console.log('Upload - Success:', upJ);
+    console.log('All files uploaded:', saved.length);
 
     await loadPosts(selectedClient.id);
     form.reset();

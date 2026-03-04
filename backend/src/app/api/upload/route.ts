@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 function extFromMime(mime: string | null) {
   if (!mime) return "";
@@ -15,41 +14,22 @@ function extFromMime(mime: string | null) {
   return "";
 }
 
-// Headers CORS para todas las respuestas
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: corsHeaders });
-}
-
 export async function POST(req: NextRequest) {
   try {
-    console.log('Upload API called - Carousel fix v1');
-    
-    // Debug: log headers
-    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
-    
+    console.log('Upload API called');
     const auth = requireAuth(req);
-    if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: 401, headers: corsHeaders });
-    }
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
 
-    console.log('Parsing formData...');
     const form = await req.formData();
-    console.log('FormData parsed successfully');
-    
     const clientSlug = String(form.get("clientSlug") || "").trim();
     const postId = String(form.get("postId") || "").trim();
     const type = String(form.get("type") || "").trim();
+    const fileIndex = Number(form.get("fileIndex") || 0);
 
-    console.log('Upload request:', { clientSlug, postId, type });
+    console.log('Upload request:', { clientSlug, postId, type, fileIndex });
 
     if (!clientSlug || !postId) {
-      return NextResponse.json({ error: "Missing clientSlug/postId" }, { status: 400, headers: corsHeaders });
+      return NextResponse.json({ error: "Missing clientSlug/postId" }, { status: 400 });
     }
 
     // Get post from database to verify it exists and get storage_path
@@ -60,105 +40,89 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (postError || !post) {
-      console.error('Post not found:', postError);
-      return NextResponse.json({ error: "Post not found" }, { status: 404, headers: corsHeaders });
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
     // Use storage_path from post or generate default
     const storagePath = post.storage_path || `${clientSlug}/${postId}`;
 
-    console.log('Getting files from formData...');
-    const files = form.getAll("files").filter(Boolean) as unknown as File[];
-    console.log('Files from form.getAll:', files.length);
+    // Get single file (uno por petición)
+    const file = form.get("files") as unknown as File | null;
     
-    if (!files.length) {
-      const single = form.get("file") as unknown as File | null;
-      if (single) files.push(single);
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!files.length) {
-      return NextResponse.json({ error: "No files provided" }, { status: 400, headers: corsHeaders });
+    console.log('Processing file:', file.name, file.type, file.size, 'bytes');
+
+    // Validar tamaño (límite de Supabase: 50MB por archivo en plan gratuito)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      return NextResponse.json({ 
+        error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Max: 50MB` 
+      }, { status: 400 });
     }
 
-    console.log('Files to upload:', files.length, 'Type:', type);
+    const mime = file.type;
+    const isImage = mime.startsWith("image/");
+    const isVideo = mime.startsWith("video/");
 
-    // Simple limits
-    if (type === "carousel" && files.length > 10) {
-      return NextResponse.json({ error: "Carousel max 10 images" }, { status: 400, headers: corsHeaders });
+    if (!isImage && !isVideo) {
+      return NextResponse.json({ error: "Only images and videos allowed" }, { status: 400 });
     }
 
-    const saved: { filePath: string; fileUrl: string }[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      console.log(`Processing file ${i}:`, file.name, file.type, file.size);
-      
-      const mime = file.type;
-      const size = file.size;
-
-      const isImage = mime.startsWith("image/");
-      const isVideo = mime.startsWith("video/");
-
-      if (isImage && size > 10 * 1024 * 1024) {
-        return NextResponse.json({ error: "Image too large (10MB max)" }, { status: 400, headers: corsHeaders });
-      }
-      if (isVideo && size > 100 * 1024 * 1024) {
-        return NextResponse.json({ error: "Video too large (100MB max)" }, { status: 400, headers: corsHeaders });
-      }
-
-      let filename = "";
-      if (type === "video") {
-        filename = `video${extFromMime(mime) || ".mp4"}`;
-      } else {
-        const ext = extFromMime(mime) || ".jpg";
-        filename = `${i + 1}${ext}`;
-      }
-
-      const filePath = `${storagePath}/${filename}`;
-      
-      console.log(`Reading file ${i} to buffer...`);
-      const buffer = Buffer.from(await file.arrayBuffer());
-      console.log(`Buffer created for file ${i}:`, buffer.length, 'bytes');
-
-      // Upload to Supabase Storage
-      console.log('Uploading to path:', filePath, 'MIME:', mime);
-      const { error: uploadError } = await supabase
-        .storage
-        .from('posts')
-        .upload(filePath, buffer, {
-          contentType: mime,
-          upsert: true
-        })
-
-      if (uploadError) {
-        console.error('Supabase upload error:', uploadError);
-        return NextResponse.json(
-          { error: `Upload failed: ${uploadError.message}`, details: uploadError },
-          { status: 500, headers: corsHeaders }
-        );
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase
-        .storage
-        .from('posts')
-        .getPublicUrl(filePath)
-
-      saved.push({
-        filePath,
-        fileUrl: publicUrl,
-      });
-      
-      console.log(`File ${i} uploaded successfully:`, publicUrl);
+    // Generar nombre de archivo
+    let filename = "";
+    if (type === "video") {
+      filename = `video${extFromMime(mime) || ".mp4"}`;
+    } else {
+      const ext = extFromMime(mime) || ".jpg";
+      // Para carrusel, usar numeración: 1.jpg, 2.jpg, etc.
+      filename = `${fileIndex + 1}${ext}`;
     }
 
-    console.log('All files uploaded:', saved.length);
-    return NextResponse.json({ files: saved }, { headers: corsHeaders });
+    const filePath = `${storagePath}/${filename}`;
+    
+    // Convertir archivo a buffer (archivo original, sin compresión)
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    console.log('Uploading original file to:', filePath);
+    
+    // Upload to Supabase Storage (archivo original)
+    const { error: uploadError } = await supabase
+      .storage
+      .from('posts')
+      .upload(filePath, buffer, {
+        contentType: mime,
+        upsert: true
+      })
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return NextResponse.json(
+        { error: `Upload failed: ${uploadError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('posts')
+      .getPublicUrl(filePath)
+
+    console.log('File uploaded successfully:', publicUrl);
+
+    return NextResponse.json({ 
+      files: [{ filePath, fileUrl: publicUrl }],
+      message: 'File uploaded successfully'
+    });
+    
   } catch (err: any) {
     console.error('Upload route error:', err);
     return NextResponse.json(
-      { error: err.message || 'Unknown error', stack: err.stack },
-      { status: 500, headers: corsHeaders }
+      { error: err.message || 'Unknown error' },
+      { status: 500 }
     );
   }
 }
