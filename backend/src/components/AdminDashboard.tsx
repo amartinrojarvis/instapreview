@@ -126,7 +126,10 @@ export function AdminDashboard() {
       for (const f of Array.from(list)) uploadFd.append("files", f);
       const upRes = await fetch("/api/upload", { method: "POST", body: uploadFd });
       const upJ = await upRes.json().catch(() => ({}));
-      if (!upRes.ok) throw new Error(upJ.error + (upJ.details ? ` - ${JSON.stringify(upJ.details)}` : "") || "Error subiendo archivos");
+      if (!upRes.ok) {
+        const errorMsg = upJ.error || upJ.message || JSON.stringify(upJ) || `Error ${upRes.status}`;
+        throw new Error(errorMsg);
+      }
     } else {
       throw new Error("Selecciona archivos para el post");
     }
