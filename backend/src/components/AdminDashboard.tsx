@@ -257,7 +257,7 @@ export function AdminDashboard() {
               <h2 className="text-lg font-semibold">Posts</h2>
               {selectedClient && (
                 <a
-                  href={`http://localhost:3000/preview/${selectedClient.slug}`}
+                  href={`https://frontend-five-nu-38.vercel.app/preview/${selectedClient.slug}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-sm font-medium text-pink-400 hover:text-pink-300"
