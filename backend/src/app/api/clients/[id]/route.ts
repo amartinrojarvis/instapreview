@@ -40,8 +40,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     .update({
       name,
       slug,
-      description: description || null
-    })
+      description: description || null,
+    } as any)
     .eq('id', params.id)
     .select()
     .single()
