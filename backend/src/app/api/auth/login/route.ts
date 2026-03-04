@@ -5,7 +5,12 @@ import { signToken, tokenCookie } from "@/lib/auth";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  assertEnv();
+  try {
+    assertEnv();
+  } catch (e: any) {
+    return NextResponse.json({ error: "Env check failed", details: e.message }, { status: 500 });
+  }
+  
   const body = await req.json().catch(() => null);
   const password = body?.password;
   if (!password) {
