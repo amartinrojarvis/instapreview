@@ -1,8 +1,9 @@
+// Lee variables directamente de process.env cada vez (para Vercel)
 export const env = {
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
-  JWT_SECRET: process.env.JWT_SECRET || "",
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  get ADMIN_PASSWORD() { return process.env.ADMIN_PASSWORD || ""; },
+  get JWT_SECRET() { return process.env.JWT_SECRET || ""; },
+  get NEXT_PUBLIC_SUPABASE_URL() { return process.env.NEXT_PUBLIC_SUPABASE_URL || ""; },
+  get SUPABASE_SERVICE_ROLE_KEY() { return process.env.SUPABASE_SERVICE_ROLE_KEY || ""; },
 };
 
 export function assertEnv() {
@@ -14,7 +15,7 @@ export function assertEnv() {
   
   if (missing.length) {
     throw new Error(
-      `Missing required env vars: ${missing.join(", ")}. Set them in .env.local`
+      `Missing required env vars: ${missing.join(", ")}`
     );
   }
 }
