@@ -15,6 +15,7 @@ function extFromMime(mime: string | null) {
 }
 
 export async function POST(req: NextRequest) {
+  console.log('Upload API called');
   const auth = requireAuth(req);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: 401 });
 
@@ -22,6 +23,8 @@ export async function POST(req: NextRequest) {
   const clientSlug = String(form.get("clientSlug") || "").trim();
   const postId = String(form.get("postId") || "").trim();
   const type = String(form.get("type") || "").trim();
+
+  console.log('Upload request:', { clientSlug, postId, type });
 
   if (!clientSlug || !postId) {
     return NextResponse.json({ error: "Missing clientSlug/postId" }, { status: 400 });
@@ -38,6 +41,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Post not found" }, { status: 404 });
   }
 
+  // Use storage_path from post or generate default
+  const storagePath = post.storage_path || `${clientSlug}/${postId}`;
+
   const files = form.getAll("files").filter(Boolean) as unknown as File[];
   if (!files.length) {
     const single = form.get("file") as unknown as File | null;
@@ -47,6 +53,8 @@ export async function POST(req: NextRequest) {
   if (!files.length) {
     return NextResponse.json({ error: "No files provided" }, { status: 400 });
   }
+
+  console.log('Files to upload:', files.length, 'Type:', type);
 
   // Simple limits
   if (type === "carousel" && files.length > 10) {
@@ -78,7 +86,7 @@ export async function POST(req: NextRequest) {
       filename = `${i + 1}${ext}`;
     }
 
-    const filePath = `${post.storage_path}/${filename}`;
+    const filePath = `${storagePath}/${filename}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Upload to Supabase Storage
