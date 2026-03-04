@@ -12,24 +12,7 @@ export function InstaPreviewHeader({ clientName, clientAvatar }: InstaPreviewHea
       <div className="flex h-[60px] items-center justify-between px-4">
         {/* Logo */}
         <div className="flex items-center">
-          <svg
-            aria-label="InstaPreview"
-            className="h-8 w-auto"
-            fill="none"
-            viewBox="0 0 100 35"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <text
-              x="0"
-              y="28"
-              fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-              fontSize="28"
-              fontWeight="600"
-              fill="#262626"
-            >
-              InstaPreview
-            </text>
-          </svg>
+          <span className="text-2xl font-semibold tracking-tight text-[#262626]">InstaPreview</span>
         </div>
 
         {/* Search bar - desktop only */}

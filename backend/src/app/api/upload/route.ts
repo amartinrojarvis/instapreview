@@ -82,17 +82,18 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
 
     // Upload to Supabase Storage
-    const { error: uploadError } = await supabase
+    const { error: uploadError, data: uploadData } = await supabase
       .storage
       .from('posts')
       .upload(filePath, buffer, {
         contentType: mime,
-        upsert: true // Overwrite if exists
+        upsert: true
       })
 
     if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
       return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
+        { error: `Upload failed: ${uploadError.message}`, details: uploadError },
         { status: 500 }
       );
     }
