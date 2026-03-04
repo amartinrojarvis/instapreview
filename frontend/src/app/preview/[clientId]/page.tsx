@@ -5,8 +5,12 @@ export default async function PreviewPage({ params }: { params: { clientId: stri
   const { client, posts } = await fetchPublicFeed(params.clientId);
 
   return (
-    <main className="min-h-screen bg-white">
-      <InstaPreviewFeed client={client} posts={posts} />
+    <main className="min-h-screen bg-white px-4 sm:px-6">
+      <div className="mx-auto max-w-lg py-4">
+        <InstaPreviewFeed client={client} posts={posts} />
+      </div>
+
+      </div>
 
       {/* Download button - floating */}
       <a
