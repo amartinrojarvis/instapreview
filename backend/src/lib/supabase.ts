@@ -4,7 +4,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // Lazy initialization - no falla en build time
-let supabaseClient: ReturnType<typeof createClient> | null = null
+let supabaseClient: any = null
 
 export function getSupabaseClient() {
   if (!supabaseClient) {
@@ -22,7 +22,7 @@ export function getSupabaseClient() {
 }
 
 // Export for backwards compatibility (lazy)
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+export const supabase: any = new Proxy({} as any, {
   get(target, prop) {
     return getSupabaseClient()[prop as keyof typeof target]
   }

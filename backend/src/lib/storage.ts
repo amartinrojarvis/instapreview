@@ -10,7 +10,7 @@ export async function removeClientStorage(clientSlug: string) {
 
     if (files && files.length > 0) {
       // Delete all files in the client folder
-      const filePaths = files.map(f => `${clientSlug}/${f.name}`)
+      const filePaths = files.map((f: { name: string }) => `${clientSlug}/${f.name}`)
       await supabase.storage.from('posts').remove(filePaths)
     }
   } catch (error) {
@@ -28,7 +28,7 @@ export async function removePostStorage(storagePath: string) {
 
     if (files && files.length > 0) {
       // Delete all files in the post folder
-      const filePaths = files.map(f => `${storagePath}/${f.name}`)
+      const filePaths = files.map((f: { name: string }) => `${storagePath}/${f.name}`)
       await supabase.storage.from('posts').remove(filePaths)
     }
   } catch (error) {
