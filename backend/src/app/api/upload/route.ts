@@ -5,15 +5,6 @@ import { supabase } from "@/lib/supabase";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Configuración para permitir uploads grandes (hasta 100MB para videos)
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '100mb',
-    },
-  },
-};
-
 function extFromMime(mime: string | null) {
   if (!mime) return "";
   if (mime === "image/jpeg") return ".jpg";
