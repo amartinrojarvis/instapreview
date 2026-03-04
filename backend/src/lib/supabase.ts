@@ -11,7 +11,7 @@ export function getSupabaseClient() {
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing Supabase environment variables. Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY')
     }
-    supabaseClient = createClient(supabaseUrl, supabaseKey, {
+    supabaseClient = createClient<any>(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
